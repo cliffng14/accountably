@@ -1,0 +1,1 @@
+GOALS_DB_SQLITE = "./goals.db"
