@@ -14,7 +14,8 @@ import constants as consts
 import challenge
 import validate_completion
 import utils
-from datetime import datetime, time
+from datetime import time
+import pytz
 
 from dotenv import load_dotenv
 
@@ -369,13 +370,13 @@ def main() -> None:
     application = Application.builder().token(BOT_TOKEN).build()
 
     # Set timezone for scheduling
-    sgt = datetime.now().astimezone().tzinfo
+    sgt = pytz.timezone('Asia/Singapore')
 
     # application.job_queue.run_repeating(challenge.schedule_challenges, interval=3600, first=10)
     # application.job_queue.run_repeating(validate_completion.validate_completion, interval=3600, first=30)
 
     # Generate and issue challenges for the next day at 9:30 PM SGT daily
-    application.job_queue.run_daily(challenge.schedule_challenges, time=time(hour=21, minute=30, tzinfo=sgt))
+    application.job_queue.run_daily(challenge.schedule_challenges, time=time(hour=22, minute=45, tzinfo=sgt))
 
     # Validate completed challenges at 10:00 PM SGT daily
     application.job_queue.run_daily(validate_completion.validate_completion, time=time(hour=22, minute=0, tzinfo=sgt))
