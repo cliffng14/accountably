@@ -14,7 +14,7 @@ import constants as consts
 import challenge
 import validate_completion
 import utils
-from datetime import time
+from datetime import datetime, time
 import pytz
 
 from dotenv import load_dotenv
