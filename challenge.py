@@ -1,4 +1,5 @@
 import os
+import ast
 import json
 import sqlite3
 from groq import Groq
@@ -13,6 +14,7 @@ from telegram.ext import (
 )
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ForceReply
 
+import utils
 import constants as consts
 import prompt_template as ptemplates
 
@@ -152,7 +154,7 @@ async def schedule_challenges(context: ContextTypes.DEFAULT_TYPE):
         # Create inline keyboard for accepting or suggesting a challenge
         keyboard = [
             [
-                InlineKeyboardButton("✅ Accept", callback_data=f"accept_challenge_{challenge_id}"),
+                InlineKeyboardButton("✅ Accept", callback_data=f"acpt_chlng_{challenge_id}_{[u['name'] for u in users]}"),
                 InlineKeyboardButton("💡 Suggest my own", callback_data=f"suggest_challenge_{goal['id']}_{challenge_id}")
             ]
         ]
@@ -175,9 +177,25 @@ async def accept_challenge(update, context):
         query = update.callback_query
         user = query.from_user
         user_id = user.id
+        display_name = utils.get_display_name_from_user_id(user_id)
+        
 
         # Extract challenge ID from callback data
-        challenge_id = query.data.split("_")[-1]
+        challenge_id = query.data.split("_")[-2]
+        users = query.data.split("_")[-1]
+        users = ast.literal_eval(users)
+        if display_name['name'] in users:
+            users.remove(display_name['name'])
+
+        # Format user list to string for message
+        if len(users) == 0:
+            username_string = ""
+        elif len(users) == 1:
+            username_string = users[0]['name']
+        elif len(users) == 2:
+            username_string = f"{users[0]['name']} and {users[1]['name']}"
+        else:
+            username_string = ", ".join(u['name'] for u in users[:-1]) + f", and {users[-1]['name']}"
 
         # Add challenge response to the database
         with sqlite3.connect(consts.GOALS_DB_SQLITE) as conn:
@@ -205,7 +223,10 @@ async def accept_challenge(update, context):
             )
             conn.commit()
 
+        
+
         await query.answer("✅ Challenge accepted!")
+        await query.message.reply_text(f"{username_string}\n\n{display_name['name']} has accepted the challenge, don't be left behind!")
 
     except Exception as e:
         print(f"Error accepting challenge: {e}")

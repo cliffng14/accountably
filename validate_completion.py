@@ -31,6 +31,9 @@ async def validate_completion(context: ContextTypes.DEFAULT_TYPE):
         # Get group ID
         group_id = utils.get_group_id_by_goal_id(goal_id)
 
+        # Get user handle
+        username = utils.get_display_name_from_user_id(user_id)
+
         if not group_id:
             print("No group found for goal_id:", goal_id)
             return  # Goal does not belong to any group
@@ -69,7 +72,7 @@ async def validate_completion(context: ContextTypes.DEFAULT_TYPE):
             chat_id=group_id,
             text=(
                 f"👋 Hi {validator_name},\n\n"
-                f"You've been selected to validate the completion of a challenge! 🎯\n\n"
+                f"You've been selected to validate the completion of {username}'s challenge! 🎯\n\n"
                 f"🔍 *Challenge Details:*\n"
                 f"• *Description:* {description}\n"
                 f"• *Completed At:* {completed_at}\n\n"

@@ -49,32 +49,51 @@ async def upsert_user(user):
 
         conn.commit()
 
-async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Send a welcome message when the /start command is issued."""
+async def feedback_to_admin(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Forward user feedback to admin."""
+    ADMIN_USER_ID = os.getenv("ADMIN_TELEGRAM_USER_ID")  # Replace with your Telegram user ID
+    
+    # Get the feedback message (everything after /feedback)
+    feedback = ' '.join(context.args)
+    
+    if not feedback:
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text="Please include your feedback after the command.\n\nExample: <code>/feedback I love this bot!</code>",
+            parse_mode='HTML'
+        )
+        return
+    
+    # Get user info
     user = update.effective_user
-
-    user_name = user.mention_html()
-    await update.message.reply_html(
-        f"Hi @{user.username}! 👋\n\n"
-    #     f"I'm a simple Telegram bot. Here's what I can do:\n"
-    #     f"/start - Show this welcome message\n"
-    #     f"/help - Get help information\n"
-    #     f"/echo <text> - I'll repeat what you say\n"
-    #     f"/buttons - Show interactive buttons\n" 
+    user_name = user.username or user.first_name
+    
+    # Send feedback to admin
+    await context.bot.send_message(
+        chat_id=ADMIN_USER_ID,
+        text=(
+            f"📬 <b>New Feedback</b>\n\n"
+            f"<b>From:</b> @{user_name} (ID: {user.id})\n"
+            f"<b>Message:</b> {feedback}"
+        ),
+        parse_mode='HTML'
+    )
+    
+    # Confirm to user
+    await context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text="✅ Thanks for your feedback! It has been sent to the admin :)"
     )
 
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Send help information when the /help command is issued."""
-    help_text = (
-        "🤖 *Bot Commands*\n\n"
-        "/help - Show this help message\n"
-        "/goals - View your goals\n"
-        "/addgoal - Add a new goal\n"
-        "/deletegoal - Thinking of giving up? Oops... delete function not ready yet :P\n\n"
-        "/complete - Mark a challenge as completed\n"
+    help_text = consts.INTRODUCTION_TEXT
+    await context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text=help_text,
+        parse_mode='HTML'
     )
-    await update.message.reply_markdown(help_text)
 
 async def goals_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Show a list of available goals in the group and allow users to join."""
@@ -300,7 +319,7 @@ async def join_goal_from_creation(update: Update, context: ContextTypes.DEFAULT_
 
 async def delete_goal_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:   
     """Delete a goal for the user."""
-    await update.message.reply_text("Delete goal functionality to be implemented.")
+    await update.message.reply_text("Thinking of giving up? Oops... delete goal functionality coming soon... maybe next year...")
 
 async def complete_challenge_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Mark a challenge as completed."""
@@ -370,11 +389,17 @@ async def bot_added_to_group(update: Update, context: ContextTypes.DEFAULT_TYPE)
     if result.new_chat_member.status in ["member", "administrator"]:
         await context.bot.send_message(
             chat_id=result.chat.id,
-            text="Hello All! 👋 I am an AI powered telegram bot that issues daily challenges for you and your friends to complete based on your goals. Don't embark on your goals alone! Drag a friend along, research shows that you are more likely to accomplish your goals with an accountability partner!\n\n <i>Source: Me 😎</i>",
+            text=consts.INTRODUCTION_TEXT,
             parse_mode='HTML'
         )
 
-
+async def private_chat_reply(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Reply to private messages with a standard message."""
+    if update.effective_chat.type == "private":
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text="👋 Hi! I only work in group chats.\n\nAdd me to your chatgroup to get started! Don't worry, I don't have access to the regular messages sent in your groupchat, just the ones directed at me :)",
+        )
 
 def main() -> None:
     """Start the bot."""
@@ -395,10 +420,10 @@ def main() -> None:
 
 
     # Add command handlers
-    application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("goals", goals_command))
     application.add_handler(CommandHandler("addgoal", add_goal_command))
+    application.add_handler(CommandHandler("feedback", feedback_to_admin))
     application.add_handler(CommandHandler("deletegoal", delete_goal_command))
     application.add_handler(CommandHandler("complete", complete_challenge_command))
 
@@ -407,13 +432,15 @@ def main() -> None:
     # Add callback handler for inline buttons
     application.add_handler(CallbackQueryHandler(join_goal_from_creation, pattern=r"^join_goal_from_creation:"))
     application.add_handler(CallbackQueryHandler(join_goals_from_goals_command, pattern=r"^join_goal_from_goals_command:"))
-    application.add_handler(CallbackQueryHandler(challenge.accept_challenge, pattern=r"^accept_challenge_"))
+    application.add_handler(CallbackQueryHandler(challenge.accept_challenge, pattern=r"^acpt_chlng_"))
     application.add_handler(CallbackQueryHandler(challenge.handle_suggest_challenge, pattern=r"^suggest_challenge_"))
     application.add_handler(CallbackQueryHandler(mark_challenge_complete_handler, pattern=r"^mark_challenge_complete:"))
     application.add_handler(CallbackQueryHandler(validate_completion.handle_validation_response, pattern=r"^validate_"))
     application.add_handler(CallbackQueryHandler(validate_completion.handle_validation_response, pattern=r"^reject_"))
     application.add_handler(MessageHandler(filters.TEXT & filters.REPLY & ~filters.COMMAND, challenge.handle_suggestion_reply))
     application.add_handler(ChatMemberHandler(bot_added_to_group, ChatMemberHandler.MY_CHAT_MEMBER))
+    application.add_handler(MessageHandler(filters.ChatType.PRIVATE, private_chat_reply))
+
 
 
     # Add message handler for regular text messages

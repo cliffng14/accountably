@@ -68,7 +68,7 @@ Generate a challenge for today. The challenge should:
 
 Respond in this exact JSON format:
 {{
-    "challenge": "Detailed description of what members need to do (1-2 sentences)"
+    "challenge": " Description of what members need to do (1-2 sentences)"
 }}
 
 Respond only with the JSON, no other text."""

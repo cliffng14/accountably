@@ -164,5 +164,27 @@ def goal_id_from_challenge_response_id_and_user_id(challenge_response_id, user_i
             return result["goal_id"]
         else:
             return None
+        
+def get_display_name_from_user_id(user_id):
+    with sqlite3.connect(consts.GOALS_DB_SQLITE) as conn:
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT u.user_id,
+                CASE 
+                    WHEN u.username IS NOT NULL THEN '@' || u.username
+                    ELSE u.display_name
+                END AS name
+            FROM users u
+            WHERE u.user_id = ?
+        """, (user_id,))
+
+        result = cursor.fetchone()
+
+        if result:
+            return result
+        else:
+            return None
+
     
 
