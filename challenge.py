@@ -84,7 +84,7 @@ def generate_challenge(goal):
     """
 
     # Initialize the Groq client
-    client = Groq(api_key=os.getenv("OATH_KEEP_GROQ_TOKEN"))
+    client = Groq(api_key=os.getenv("GROQ_TOKEN"))
 
     # Create a chat completion request to generate the challenge
     response = client.chat.completions.create(

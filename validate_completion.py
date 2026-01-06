@@ -44,7 +44,7 @@ async def validate_completion(context: ContextTypes.DEFAULT_TYPE):
         if not validators:
             await context.bot.send_message(
                 chat_id = group_id,
-                text = "Hm... it seems there is no one available to validate the completed challenge... Okay, I'll just take your word for it! Congratulations! 🎉\n\n Do find a accountability partner to join you on your quest soon... You have a higher chance of achieving your goal!\n<i>Source: Me 😎</i>",
+                text = "Hm... it seems there is no one available to validate the completed challenge... Okay, I'll just take your word for it! Congratulations! 🎉\n\n Find an accountability partner to join your quest soon... You have a higher chance of achieving your goal with a friend keeping you company!\n\n<i>Source: Me 😎</i>",
                 parse_mode = 'HTML'
             )
             return  # No one to validate the challenge

@@ -8,6 +8,7 @@ from telegram.ext import (
     CallbackQueryHandler,
     ContextTypes,
     filters,
+    ChatMemberHandler,
 )
 import sqlite3
 import constants as consts
@@ -30,7 +31,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Replace with your bot token from @BotFather
-BOT_TOKEN = os.getenv("OATH_KEEP_BOT_TOKEN")
+BOT_TOKEN = os.getenv("BOT_TOKEN")
 
 async def upsert_user(user):
 
@@ -67,12 +68,11 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     """Send help information when the /help command is issued."""
     help_text = (
         "🤖 *Bot Commands*\n\n"
-        "/start - Start the bot\n"
         "/help - Show this help message\n"
         "/goals - View your goals\n"
         "/addgoal - Add a new goal\n"
-        "/deletegoal - Delete an existing goal\n\n" 
-        "You can also just send me any message and I'll respond!"
+        "/deletegoal - Thinking of giving up? Oops... delete function not ready yet :P\n\n"
+        "/complete - Mark a challenge as completed\n"
     )
     await update.message.reply_markdown(help_text)
 
@@ -362,6 +362,18 @@ async def mark_challenge_complete_handler(update: Update, context: ContextTypes.
         text = f"🎉 {display_name} has marked a challenge as completed! Great job!",
         reply_markup = None, 
         parse_mode = 'HTML')
+    
+async def bot_added_to_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # Check if the bot was added (status changed to "member" or "administrator")
+    result = update.my_chat_member
+    
+    if result.new_chat_member.status in ["member", "administrator"]:
+        await context.bot.send_message(
+            chat_id=result.chat.id,
+            text="Hello All! 👋 I am a telegram bot that issues daily challenges for you and your friends to complete based on your goals. Don't embark on your goals alone! Drag a friend along, research shows that you are more likely to accomplish your goals with an accountability partner!\n\n <i>Source: Me 😎",
+            parse_mode='HTML'
+        )
+
 
 
 def main() -> None:
