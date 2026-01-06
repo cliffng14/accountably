@@ -114,7 +114,7 @@ def get_user_display_name_by_challenge_response_id(challenge_response_id):
                 CASE 
                     WHEN u.username IS NOT NULL THEN '@' || u.username
                     ELSE u.display_name
-                END AS name,
+                END AS name
             FROM users u
             JOIN challenge_responses cr ON u.user_id = cr.user_id
             WHERE cr.id = ?
@@ -146,5 +146,23 @@ def mark_challenge_as_rejected(challenge_response_id):
             WHERE id = ?
         """, (challenge_response_id,))
         conn.commit()
+
+def goal_id_from_challenge_response_id_and_user_id(challenge_response_id, user_id):
+    with sqlite3.connect(consts.GOALS_DB_SQLITE) as conn:
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT c.goal_id
+            FROM challenges c
+            JOIN challenge_responses cr ON c.id = cr.challenge_id
+            WHERE cr.id = ? AND cr.user_id = ?
+        """, (challenge_response_id, user_id))
+
+        result = cursor.fetchone()
+
+        if result:
+            return result["goal_id"]
+        else:
+            return None
     
 
