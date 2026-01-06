@@ -66,7 +66,7 @@ async def validate_completion(context: ContextTypes.DEFAULT_TYPE):
         reply_markup = InlineKeyboardMarkup(keyboard)
 
         await context.bot.send_message(
-            chat_id=validator_user_id,
+            chat_id=group_id,
             text=(
                 f"👋 Hi {validator_name},\n\n"
                 f"You've been selected to validate the completion of a challenge! 🎯\n\n"

@@ -370,7 +370,7 @@ async def bot_added_to_group(update: Update, context: ContextTypes.DEFAULT_TYPE)
     if result.new_chat_member.status in ["member", "administrator"]:
         await context.bot.send_message(
             chat_id=result.chat.id,
-            text="Hello All! 👋 I am a telegram bot that issues daily challenges for you and your friends to complete based on your goals. Don't embark on your goals alone! Drag a friend along, research shows that you are more likely to accomplish your goals with an accountability partner!\n\n <i>Source: Me 😎",
+            text="Hello All! 👋 I am an AI powered telegram bot that issues daily challenges for you and your friends to complete based on your goals. Don't embark on your goals alone! Drag a friend along, research shows that you are more likely to accomplish your goals with an accountability partner!\n\n <i>Source: Me 😎</i>",
             parse_mode='HTML'
         )
 
@@ -391,7 +391,7 @@ def main() -> None:
     application.job_queue.run_daily(challenge.schedule_challenges, time=time(hour=22, minute=45, tzinfo=sgt))
 
     # Validate completed challenges at 10:00 PM SGT daily
-    application.job_queue.run_daily(validate_completion.validate_completion, time=time(hour=22, minute=0, tzinfo=sgt))
+    application.job_queue.run_daily(validate_completion.validate_completion, time=time(hour=22, minute=15, tzinfo=sgt))
 
 
     # Add command handlers
@@ -413,6 +413,7 @@ def main() -> None:
     application.add_handler(CallbackQueryHandler(validate_completion.handle_validation_response, pattern=r"^validate_"))
     application.add_handler(CallbackQueryHandler(validate_completion.handle_validation_response, pattern=r"^reject_"))
     application.add_handler(MessageHandler(filters.TEXT & filters.REPLY & ~filters.COMMAND, challenge.handle_suggestion_reply))
+    application.add_handler(ChatMemberHandler(bot_added_to_group, ChatMemberHandler.MY_CHAT_MEMBER))
 
 
     # Add message handler for regular text messages
@@ -423,7 +424,7 @@ def main() -> None:
 
     # Start the bot
     print("Bot is starting...")
-    application.run_polling(allowed_updates=["message", "callback_query"])
+    application.run_polling(allowed_updates=["message", "callback_query", "my_chat_member"])
 
 
 if __name__ == "__main__":
