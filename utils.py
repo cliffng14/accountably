@@ -123,7 +123,7 @@ def get_user_display_name_by_challenge_response_id(challenge_response_id):
         user = cursor.fetchone()
 
         if user:
-            return user["display_name"]
+            return user["name"]
         else:
             return None
         
