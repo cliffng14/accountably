@@ -94,7 +94,7 @@ async def handle_validation_response(update: Update, context: ContextTypes.DEFAU
 
     if data.startswith("validate_"):
 
-        await utils.mark_challenge_as_validated(challenge_response_id)
+        utils.mark_challenge_as_validated(challenge_response_id)
         
         await query.answer(f"✅ Challenge validated successfully!")
         await query.edit_message_text(
