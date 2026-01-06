@@ -101,7 +101,7 @@ async def handle_validation_response(update: Update, context: ContextTypes.DEFAU
             text = f"✅ You have validated the challenge completion for {challenger}. Thank you for your help!",
             reply_markup = None,
             parse_mode = 'HTML')
-        await query.reply_text(f"✅ {challenger['display_name']}'s challenge has been validated successfully by ! Great job!")
+        await query.message.reply_text(f"✅ {challenger}'s challenge has been validated successfully by ! Great job!")
 
     elif data.startswith("reject_"):
 
