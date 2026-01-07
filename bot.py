@@ -416,7 +416,7 @@ def main() -> None:
     application.job_queue.run_daily(challenge.schedule_challenges, time=time(hour=22, minute=45, tzinfo=sgt))
 
     # Validate completed challenges at 10:00 PM SGT daily
-    application.job_queue.run_daily(validate_completion.validate_completion, time=time(hour=22, minute=30, tzinfo=sgt))
+    application.job_queue.run_daily(validate_completion.validate_completion, time=time(hour=23, minute=59, tzinfo=sgt))
 
 
     # Add command handlers

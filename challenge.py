@@ -295,7 +295,7 @@ async def handle_suggestion_reply(update: Update, context: ContextTypes.DEFAULT_
         )
 
         cursor.execute(
-            "UPDATE challenges SET rejected = 1 WHERE challenge_id = ?",
+            "UPDATE challenges SET rejected = 1 WHERE id = ?",
             (old_challenge_id,)
         )
 
