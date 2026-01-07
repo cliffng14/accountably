@@ -154,7 +154,7 @@ async def schedule_challenges(context: ContextTypes.DEFAULT_TYPE):
         # Create inline keyboard for accepting or suggesting a challenge
         keyboard = [
             [
-                InlineKeyboardButton("✅ Accept", callback_data=f"acpt_chlng_{challenge_id}_{[u['name'] for u in users]}"),
+                InlineKeyboardButton("✅ Accept", callback_data=f"accept_challenge_{challenge_id}"),
                 InlineKeyboardButton("💡 Suggest my own", callback_data=f"suggest_challenge_{goal['id']}_{challenge_id}")
             ]
         ]
@@ -178,26 +178,33 @@ async def accept_challenge(update, context):
         user = query.from_user
         user_id = user.id
         display_name = utils.get_display_name_from_user_id(user_id)
-        print(0)
         
-
         # Extract challenge ID from callback data
-        challenge_id = query.data.split("_")[-2]
-        users = query.data.split("_")[-1]
-        users = ast.literal_eval(users)
-        if display_name['name'] in users:
-            users.remove(display_name['name'])
+        challenge_id = query.data.split("_")[-1]
+
+        # Get goal_id
+        goal_id = utils.get_goal_id_from_challenge_id(challenge_id)
+
+        # Get all participants in goal
+        full_users_list = utils.get_members_in_goal(goal_id)
+
+        # Get all users that have yet to accept challenge
+        accepted_user_list = utils.get_challenge_accepted_participants(challenge_id)
+        
+        # Get list of users that have not accepted challenge
+        accepted_names = [u['user_id'] for u in accepted_user_list]
+        unaccepted_list = [u for u in full_users_list if u['user_id'] not in accepted_names]
+        unaccpeted_user_list = [utils.get_display_name_from_user_id(u['user_id']) for u in unaccepted_list]
 
         # Format user list to string for message
-        if len(users) == 0:
+        if len(unaccpeted_user_list) == 0:
             username_string = ""
-        elif len(users) == 1:
-            username_string = users[0]['name']
-        elif len(users) == 2:
-            username_string = f"{users[0]['name']} and {users[1]['name']}"
+        elif len(unaccpeted_user_list) == 1:
+            username_string = unaccpeted_user_list[0]['name']
+        elif len(unaccpeted_user_list) == 2:
+            username_string = f"{unaccpeted_user_list[0]['name']} and {unaccpeted_user_list[1]['name']}"
         else:
-            username_string = ", ".join(u['name'] for u in users[:-1]) + f", and {users[-1]['name']}"
-        print(1)
+            username_string = ", ".join(u['name'] for u in unaccpeted_user_list[:-1]) + f", and {unaccpeted_user_list[-1]['name']}"
 
         # Add challenge response to the database
         with sqlite3.connect(consts.GOALS_DB_SQLITE) as conn:
@@ -224,8 +231,6 @@ async def accept_challenge(update, context):
                 ('pending', challenge_id, user_id)
             )
             conn.commit()
-
-        
 
         await query.answer("✅ Challenge accepted!")
         await query.message.reply_text(f"{username_string}\n\n{display_name['name']} has accepted the challenge, don't be left behind!")

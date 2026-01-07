@@ -432,7 +432,7 @@ def main() -> None:
     # Add callback handler for inline buttons
     application.add_handler(CallbackQueryHandler(join_goal_from_creation, pattern=r"^join_goal_from_creation:"))
     application.add_handler(CallbackQueryHandler(join_goals_from_goals_command, pattern=r"^join_goal_from_goals_command:"))
-    application.add_handler(CallbackQueryHandler(challenge.accept_challenge, pattern=r"^acpt_chlng_"))
+    application.add_handler(CallbackQueryHandler(challenge.accept_challenge, pattern=r"^accept_challenge_"))
     application.add_handler(CallbackQueryHandler(challenge.handle_suggest_challenge, pattern=r"^suggest_challenge_"))
     application.add_handler(CallbackQueryHandler(mark_challenge_complete_handler, pattern=r"^mark_challenge_complete:"))
     application.add_handler(CallbackQueryHandler(validate_completion.handle_validation_response, pattern=r"^validate_"))

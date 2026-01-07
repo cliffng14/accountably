@@ -160,10 +160,27 @@ def goal_id_from_challenge_response_id_and_user_id(challenge_response_id, user_i
 
         result = cursor.fetchone()
 
-        if result:
+    if result:
+        return result["goal_id"]
+    else:
+        return None
+        
+def get_goal_id_from_challenge_id(challenge_id):
+    with sqlite3.connect(consts.GOALS_DB_SQLITE) as conn:
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT c.goal_id
+            FROM challenges c
+            WHERE c.id = ?
+        """, (challenge_id,))
+
+        result = cursor.fetchone()
+
+    if result:
             return result["goal_id"]
-        else:
-            return None
+    else:
+        return None
         
 def get_display_name_from_user_id(user_id):
     with sqlite3.connect(consts.GOALS_DB_SQLITE) as conn:
@@ -185,6 +202,17 @@ def get_display_name_from_user_id(user_id):
             return result
         else:
             return None
+        
+def get_challenge_accepted_participants(challenge_id):
+    with sqlite3.connect(consts.GOALS_DB_SQLITE) as conn:
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT cr.user_id
+            FROM challenge_responses cr
+            WHERE cr.challenge_id = ? AND cr.status = 'issued'
+        """, (challenge_id,))
 
-    
+        result = cursor.fetchall()
 
+    return result
