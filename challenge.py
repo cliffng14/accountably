@@ -170,7 +170,7 @@ async def schedule_challenges(context: ContextTypes.DEFAULT_TYPE):
 
 async def accept_challenge(update, context):
     """
-    Updatees the challenge response status to 'accepted from 'issued' when a user accepts a challenge.
+    Updates the challenge response status to 'accepted from 'issued' when a user accepts a challenge.
     """
 
     try:
@@ -178,6 +178,7 @@ async def accept_challenge(update, context):
         user = query.from_user
         user_id = user.id
         display_name = utils.get_display_name_from_user_id(user_id)
+        print(0)
         
 
         # Extract challenge ID from callback data
@@ -196,6 +197,7 @@ async def accept_challenge(update, context):
             username_string = f"{users[0]['name']} and {users[1]['name']}"
         else:
             username_string = ", ".join(u['name'] for u in users[:-1]) + f", and {users[-1]['name']}"
+        print(1)
 
         # Add challenge response to the database
         with sqlite3.connect(consts.GOALS_DB_SQLITE) as conn:
