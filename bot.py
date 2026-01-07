@@ -284,7 +284,7 @@ async def join_goal(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     
     # Send confirmation messages
     await query.answer(f"{display_name} joined the goal!")
-    await query.message.reply_text(f"@{display_name} joined the goal!")
+    await query.message.reply_text(f"{display_name} joined the goal!")
 
 async def join_goal_from_creation(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
