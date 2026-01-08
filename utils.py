@@ -216,3 +216,33 @@ def get_challenge_accepted_participants(challenge_id):
         result = cursor.fetchall()
 
     return result
+
+def get_goal_starting_date(goal_id):
+    with sqlite3.connect(consts.GOALS_DB_SQLITE) as conn:
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT created_at
+            FROM goals 
+            WHERE id = ?
+        """, (goal_id,))
+
+        result = cursor.fetchone()
+
+    return result
+
+def get_past_challenges(goal_id, limit = 7):
+    with sqlite3.connect(consts.GOALS_DB_SQLITE) as conn:
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT *
+            FROM challenges 
+            WHERE goal_id = ? AND rejected = 0
+            ORDER BY created_at DESC
+            LIMIT ? 
+        """, (goal_id, limit))
+
+        result = cursor.fetchall()
+
+    return result

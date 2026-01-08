@@ -57,7 +57,6 @@ When generating the challenge, please keep the following guidelines in mind:
 CHALLENGE_PROMPT_TEMPLATE = """You are an accountability coach helping users achieve their goals through daily challenges.
 
 Goal: {goal}
-Number of members working on this goal: {member_count}
 
 Generate a challenge for today. The challenge should:
 - Help the members make progress toward the goal
@@ -70,5 +69,7 @@ Respond in this exact JSON format:
 {{
     "challenge": " Description of what members need to do (1-2 sentences)"
 }}
+
+This is the {num_day} day of the goal, some of the past challenges are: {past_challenges}. Try not to be repeat the same challenges.
 
 Respond only with the JSON, no other text."""

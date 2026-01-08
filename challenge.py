@@ -66,7 +66,7 @@ def get_goals_to_challenge(db_path):
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT id, group_id, goal, status
+            SELECT *
             FROM goals
             WHERE status = 'active'
         """)
@@ -74,7 +74,7 @@ def get_goals_to_challenge(db_path):
 
     return rows
 
-def generate_challenge(goal):
+def generate_challenge(goal, start_date, past_challenges):
     """
     Generate a challenge message for a given goal.
 
@@ -85,6 +85,9 @@ def generate_challenge(goal):
         str: A challenge message.
     """
 
+    # Get number of days since the goal started
+    num_days = datetime.now() - datetime.strptime(start_date, "%Y-%m-%d %H:%M:%S")
+
     # Initialize the Groq client
     client = Groq(api_key=os.getenv("GROQ_TOKEN"))
 
@@ -92,8 +95,8 @@ def generate_challenge(goal):
     response = client.chat.completions.create(
         model="meta-llama/llama-4-scout-17b-16e-instruct",  
         messages=[
-            {"role": "system", "content": ptemplates.CHALLENGE_PROMPT_TEMPLATE},
-            {"role": "user", "content": f"Generate a challenge for: {goal}"}
+            {"role": "system", "content": ptemplates.CHALLENGE_PROMPT_TEMPLATE.format(goal = goal, num_day = num_days.days, past_challenges = [challenge['description'] for challenge in past_challenges])},
+            {"role": "user", "content": f"Generate a challenge for: {goal}."}
         ],
         max_tokens = 100,
         response_format = {'type': 'json_object'}
@@ -115,8 +118,11 @@ async def schedule_challenges(context: ContextTypes.DEFAULT_TYPE):
 
     for goal in goals_to_challenge:
 
+        # Get past challenges
+        past_challenges = utils.get_past_challenges(goal['id'])
+
         # Generate a challenge for the goal
-        challenge_message = generate_challenge(goal["goal"]).get("challenge")
+        challenge_message = generate_challenge(goal["goal"], goal["created_at"], past_challenges).get("challenge")
 
         # Get users working on this goal
         users = get_users_for_goal(goal["id"])
@@ -328,58 +334,23 @@ async def handle_suggestion_reply(update: Update, context: ContextTypes.DEFAULT_
 
     display_name = f"@{update.effective_user.username}" or update.effective_user.first_name
 
+    other_participants = utils.get_members_in_goal(goal_id)
+    other_participants_name = [participants['name'] for participants in other_participants]
+
+    other_participants_name.remove(display_name)
+
+    if len(other_participants_name) == 0:
+        other_participants_name_str = ''
+    elif len(other_participants_name) == 1:
+        other_participants_name_str = other_participants_name[0]
+    elif len(other_participants_name) == 2:
+        other_participants_name_str = f"{other_participants_name[0]} and {other_participants_name[1]}"
+    else:
+        other_participants_name_str = ", ".join(other_participants_name[:-1]) + f", and {other_participants_name[-1]}"
+    
+
     await update.message.reply_text(
-        f"🎯 <b>New Challenge Suggested by {display_name}:</b>\n<tg-spoiler>{suggestion}</tg-spoiler>\n\n<u><i>They don't think you can do it. Show them.</i></u>",
+        f"🎯 <b>New Challenge Suggested by {display_name}:</b>\n<tg-spoiler>{suggestion}</tg-spoiler>\n\n{other_participants_name_str}\n<u><i>They don't think you can do it. Show them.</i></u>",
         reply_markup=reply_markup,
         parse_mode="HTML"
     )
-
-
-
-
-# def get_challenges_to_poll(db_path):
-#     """
-#     Fetch open challenges that need to be polled for results.
-
-#     Args:
-#         db_path (str): Path to the SQLite database file.
-
-#     Returns:
-#         list: A list of open challenges to poll.
-#     """
-
-#     conn = sqlite3.connect(db_path)
-#     cursor = conn.cursor()
-
-#     # Query open challenges that are pending and past their due date
-#     cursor.execute("""
-#         SELECT *
-#         FROM open_challenges_issued
-#         WHERE status = 'pending' AND due_at <= ? AND polled_at IS NULL
-#     """, (datetime.now().isoformat(),))
-
-#     challenges_to_poll = []
-#     for row in cursor.fetchall():
-#         challenges_to_poll.append({
-#             "id": row[0],
-#             "goal_id": row[1],
-#             "group_id": row[2],
-#             "challenge_text": row[3],
-#             "issued_at": row[4],
-#             "due_at": row[5]
-#         })
-
-#     conn.close()
-#     return challenges_to_poll
-
-# async def challenge_result_poll(db_path, context: ContextTypes.DEFAULT_TYPE):
-
-#     challenges_to_poll = get_challenges_to_poll(db_path)
-
-#     for challenge in challenges_to_poll:
-        
-#         # Here you would send the challenge_message to the appropriate group/user
-#         await context.bot.send_message(
-#             chat_id = challenge["group_id"],
-#             text = f"⏳ Time to check in! Did you complete the challenge: {challenge['challenge_text']}? Please reply with 'yes' or 'no'."
-#             )
