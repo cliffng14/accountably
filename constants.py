@@ -1,3 +1,5 @@
+DEV_MODE = False
+
 GOALS_DB_SQLITE = "./goals.db"
 
 INTRODUCTION_TEXT = """

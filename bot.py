@@ -1,5 +1,8 @@
 import os
+import html
+import traceback
 import logging
+from telegram.error import Forbidden, BadRequest, TimedOut, NetworkError
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application,
@@ -14,6 +17,7 @@ import sqlite3
 import constants as consts
 import challenge
 import validate_completion
+import remind
 import utils
 from datetime import datetime, time
 import pytz
@@ -82,7 +86,7 @@ async def feedback_to_admin(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     # Confirm to user
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
-        text="✅ Thanks for your feedback! It has been sent to the admin :)"
+        text="✅ Thanks for your feedback! It has been sent to the admin."
     )
 
 
@@ -398,8 +402,49 @@ async def private_chat_reply(update: Update, context: ContextTypes.DEFAULT_TYPE)
     if update.effective_chat.type == "private":
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
-            text="👋 Hi! I only work in group chats.\n\nAdd me to your chatgroup to get started! Don't worry, I don't have access to the regular messages sent in your groupchat, just the ones directed at me :)",
+            text="👋 Hi! I only work in group chats.\n\nAdd me to your chatgroup to get started! Don't worry, I don't have access to the regular messages sent in your groupchat, just the ones directed at me",
         )
+
+async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    error = context.error
+
+    # Format error message
+    error_message = (
+        f"⚠️ <b>Bot Error</b>\n\n"
+        f"<b>Error:</b> {html.escape(type(error).__name__)}\n"
+        f"<b>Message:</b> {html.escape(str(error))}\n\n"
+    )
+
+    # Add update info if available
+    if update:
+        if update.effective_user:
+            error_message += f"<b>User:</b> {update.effective_user.id} ({html.escape(update.effective_user.first_name)})\n"
+        if update.effective_chat:
+            error_message += f"<b>Chat:</b> {update.effective_chat.id}\n"
+        if update.effective_message and update.effective_message.text:
+            error_message += f"<b>Text:</b> {html.escape(update.effective_message.text)}\n"
+    else:
+        error_message += "<b>Update:</b> None (likely from a scheduled job)\n"
+        if isinstance(error, Forbidden):
+        # Bot was blocked or kicked
+            error_message += "Bot was removed from groupchat"
+
+    # Add traceback - escape HTML characters
+    # tb = ''.join(traceback.format_exception(type(error), error, error.__traceback__))
+    # if len(tb) > 3000:
+    #     tb = tb[:3000] + "..."
+    # error_message += f"\n<pre>{html.escape(tb)}</pre>"
+
+    # Send to admin
+    try:
+        await context.bot.send_message(
+            chat_id=os.getenv("ADMIN_TELEGRAM_USER_ID"),
+            text=error_message,
+            parse_mode='HTML'
+        )
+    except Exception as e:
+        print(f"Failed to send error to admin: {e}")
+
 
 def main() -> None:
     """Start the bot."""
@@ -409,14 +454,19 @@ def main() -> None:
     # Set timezone for scheduling
     sgt = pytz.timezone('Asia/Singapore')
 
-    # application.job_queue.run_repeating(challenge.schedule_challenges, interval=3600, first=10)
-    # application.job_queue.run_repeating(validate_completion.validate_completion, interval=3600, first=30)
+    if consts.DEV_MODE:
+        application.job_queue.run_repeating(challenge.schedule_challenges, interval=3600, first=10)
+        application.job_queue.run_repeating(validate_completion.validate_completion, interval=3600, first=30)
 
-    # Generate and issue challenges for the next day at 9:30 PM SGT daily
-    application.job_queue.run_daily(challenge.schedule_challenges, time=time(hour=22, minute=45, tzinfo=sgt))
+    else:
+        # Generate and issue challenges for the next day at 9:30 PM SGT daily
+        application.job_queue.run_daily(challenge.schedule_challenges, time=time(hour=22, minute=45, tzinfo=sgt))
 
-    # Validate completed challenges at 10:00 PM SGT daily
-    application.job_queue.run_daily(validate_completion.validate_completion, time=time(hour=23, minute=59, tzinfo=sgt))
+        # Validate completed challenges at 10:00 PM SGT daily
+        application.job_queue.run_daily(validate_completion.validate_completion, time=time(hour=23, minute=59, tzinfo=sgt))
+
+        # Send reminder message in the morning
+        # application.job_queue.run_daily(remind.)
 
 
     # Add command handlers
@@ -447,7 +497,7 @@ def main() -> None:
     # application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
     # Add error handler
-    # application.add_error_handler(error_handler)
+    application.add_error_handler(error_handler)
 
     # Start the bot
     print("Bot is starting...")

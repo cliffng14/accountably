@@ -27,6 +27,7 @@ async def validate_completion(context: ContextTypes.DEFAULT_TYPE):
         description = challenge["description"]
         goal_id = challenge["goal_id"]
         user_id = challenge["user_id"]
+        challenge_text = challenge["description"]
 
         # Get group ID
         group_id = utils.get_group_id_by_goal_id(goal_id)
@@ -47,7 +48,7 @@ async def validate_completion(context: ContextTypes.DEFAULT_TYPE):
         if not validators:
             await context.bot.send_message(
                 chat_id = group_id,
-                text = "Hm... it seems there is no one available to validate the completed challenge... Okay, I'll just take your word for it! Congratulations! 🎉\n\n Find an accountability partner to join your quest soon... You have a higher chance of achieving your goal with a friend keeping you company!\n\n<i>Source: Me 😎</i>",
+                text = f"Hm... it seems there is no one available to validate your completed completed challenge... Okay, I'll just take your word for it this time...\n\n<b>Congratulations 🎉</b>, you have completed the following goal:\n{challenge_text}\n\nFind an accountability partner to join your quest soon... You have a higher chance of achieving your goal with a friend keeping you company!\n\n<i>Source: Me 😎</i>",
                 parse_mode = 'HTML'
             )
             return  # No one to validate the challenge
@@ -94,14 +95,15 @@ async def handle_validation_response(update: Update, context: ContextTypes.DEFAU
     challenge_response_id = int(data.split("_")[1])
 
     challenger = utils.get_user_display_name_by_challenge_response_id(challenge_response_id)
+    challenge_description = utils.get_challenge_from_challenge_response_id(challenge_response_id)['description']
 
     if data.startswith("validate_"):
 
-        utils.mark_challenge_as_validated(challenge_response_id)
+        await utils.mark_challenge_as_validated(challenge_response_id)
         
         await query.answer(f"✅ Challenge validated successfully!")
         await query.edit_message_text(
-            text = f"✅ You have validated the challenge completion for {challenger}. Thank you for your help!",
+            text = f"✅ You have validated the challenge completion for {challenger}. They have completed the following challenge:\n{challenge_description}\n\nThank you for your help!",
             reply_markup = None,
             parse_mode = 'HTML')
         await query.message.reply_text(f"✅ {challenger}'s challenge has been validated successfully by ! Great job!")
@@ -112,8 +114,8 @@ async def handle_validation_response(update: Update, context: ContextTypes.DEFAU
 
         await query.answer(f"❌ Challenge rejected.")
         await query.edit_message_text(
-            text = f"❌ You have rejected the challenge completion for {challenger['display_name']}.",
+            text = f"❌ You have rejected the challenge completion for {challenger['display_name']}. They <b>did not</b> complete the following challenge:\n{challenge_description}",
             reply_markup = None,
             parse_mode = 'HTML')
-        await query.reply_text(f"❌ Hey {challenger['display_name']}, {validator_display_name} does not think you did enough... Prove to them tomorrow!")
+        await query.reply_text(f"❌ Hey {challenger['display_name']}, {validator_display_name} does not think you did enough to complete the following challenge:\n{challenge_description}\n\n Prove them wrong tomorrow!")
 

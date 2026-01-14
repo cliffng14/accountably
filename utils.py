@@ -66,6 +66,22 @@ def get_completed_unvalidated_challenges():
 
         return completed_challenges
     
+def get_challenge_from_challenge_response_id(challenge_response_id):
+
+    with sqlite3.connect(consts.GOALS_DB_SQLITE) as conn:
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT cr.id as challenge_response_id, cr.challenge_id, cr.completed_at, c.description, c.goal_id, cr.user_id
+            FROM challenge_responses cr
+            JOIN challenges c ON cr.challenge_id = c.id
+            WHERE cr.id = ?
+        """, (challenge_response_id,))
+
+        completed_challenges = cursor.fetchall()
+
+        return completed_challenges
+
 def get_members_in_goal(goal_id):
 
     with sqlite3.connect(consts.GOALS_DB_SQLITE) as conn:
@@ -127,7 +143,7 @@ def get_user_display_name_by_challenge_response_id(challenge_response_id):
         else:
             return None
         
-def mark_challenge_as_validated(challenge_response_id):
+async def mark_challenge_as_validated(challenge_response_id):
     with sqlite3.connect(consts.GOALS_DB_SQLITE) as conn:
         cursor = conn.cursor()
         cursor.execute("""
@@ -137,7 +153,7 @@ def mark_challenge_as_validated(challenge_response_id):
         """, (challenge_response_id,))
         conn.commit()
 
-def mark_challenge_as_rejected(challenge_response_id):
+async def mark_challenge_as_rejected(challenge_response_id):
     with sqlite3.connect(consts.GOALS_DB_SQLITE) as conn:
         cursor = conn.cursor()
         cursor.execute("""
