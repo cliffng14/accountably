@@ -17,7 +17,7 @@ import sqlite3
 import constants as consts
 import challenge
 import validate_completion
-import remind
+# import remind
 import utils
 from datetime import datetime, time
 import pytz
