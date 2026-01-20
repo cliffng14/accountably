@@ -73,7 +73,7 @@ async def validate_completion(context: ContextTypes.DEFAULT_TYPE):
             chat_id=group_id,
             text=(
                 f"👋 Hi {validator_name},\n\n"
-                f"You've been selected to validate the completion of {username}'s challenge! 🎯\n\n"
+                f"You've been selected to validate the completion of {username['name']}'s challenge! 🎯\n\n"
                 f"🔍 *Challenge Details:*\n"
                 f"• *Description:* {description}\n"
                 f"• *Completed At:* {completed_at}\n\n"

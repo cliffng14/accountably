@@ -37,19 +37,40 @@ logger = logging.getLogger(__name__)
 # Replace with your bot token from @BotFather
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
-async def upsert_user(user):
-
+async def upsert_user_and_group(user, group):
+    """Insert or update user, group, and group membership information in the database."""
     with sqlite3.connect(consts.GOALS_DB_SQLITE) as conn:
         cursor = conn.cursor()
-        
-        cursor.execute("""
+
+        # Insert or update user
+        cursor.execute(
+            """
             INSERT INTO users (user_id, username, display_name)
             VALUES (?, ?, ?)
-            ON CONFLICT(user_id) DO UPDATE SET
-                username = excluded.username,
-                display_name = excluded.display_name,
-                updated_at = CURRENT_TIMESTAMP
-        """, (user.id, user.username, user.first_name))
+            ON CONFLICT(user_id) DO NOTHING
+            """,
+            (user.id, user.username, user.first_name)
+        )
+
+        # Insert or update group
+        cursor.execute(
+            """
+            INSERT INTO groups (group_id, group_name)
+            VALUES (?, ?)
+            ON CONFLICT(group_id) DO NOTHING
+            """,
+            (group.id, group.title)
+        )
+
+        # Insert or update group membership
+        cursor.execute(
+            """
+            INSERT INTO group_members (group_id, user_id)
+            VALUES (?, ?)
+            ON CONFLICT(group_id, user_id) DO NOTHING
+            """,
+            (group.id, user.id)
+        )
 
         conn.commit()
 
@@ -106,7 +127,7 @@ async def goals_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     user_id = user.id
 
     # Insert or update the user in the database
-    await upsert_user(user)
+    await upsert_user_and_group(user, group)
 
     # Fetch active goals the user has already joined
     joined_goals = utils.get_active_participanting_goals(group.id, user_id)
@@ -204,7 +225,7 @@ async def add_goal_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     display_name = f"@{user.username}" if user.username else user.first_name
 
     # Insert or update the user in the database
-    await upsert_user(user)
+    await upsert_user_and_group(user, group)
 
     full_text = update.message.text
 
@@ -263,8 +284,12 @@ async def join_goal(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     # Adding user to goal in chat_data
     try:
-        context.chat_data.get(f"goal_id_{goal_id}")['participants'].append(user_id)
-        await query.answer(f"@{display_name} joined the goal.", show_alert=True)
+        goal_data = context.chat_data.get(f"goal_id_{goal_id}")
+        if goal_data and 'participants' in goal_data:
+            goal_data['participants'].append(user_id)
+            await query.answer(f"@{display_name} joined the goal.", show_alert=True)
+        else:
+            raise KeyError("Participants list not found in goal data.")
     except KeyError:
         await query.answer("Error in adding participant into group context", show_alert=True)
         return
@@ -282,7 +307,7 @@ async def join_goal(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         conn.close()
 
     except sqlite3.Error as e:
-        await query.message.reply_text("An error occurred while joining goal. Please try again.")
+        await update.message.reply_text("An error occurred while joining goal. Please try again.")
         logger.error(f"Database error: {e}")
         return
     
@@ -295,10 +320,10 @@ async def join_goal_from_creation(update: Update, context: ContextTypes.DEFAULT_
     user = query.from_user
     user_id = user.id
     goal_id = query.data.split(":")[1]
-
+    group = query.message.chat
     new_goal = context.chat_data.get(f"goal_id_{goal_id}")
 
-    await upsert_user(user)
+    await upsert_user_and_group(user, group)
 
     if not new_goal:
         await query.answer("Something went wrong.", show_alert=True)
@@ -334,7 +359,7 @@ async def complete_challenge_command(update: Update, context: ContextTypes.DEFAU
     display_name = f"@{user.username}" if user.username else user.first_name
 
     # Insert or update the user in the database
-    await upsert_user(user)
+    await upsert_user_and_group(user, group)
 
     # Fetch active challenges the user has already joined
     pending_challenges = utils.get_pending_challenges(group.id, user_id)
@@ -385,6 +410,25 @@ async def mark_challenge_complete_handler(update: Update, context: ContextTypes.
         text = f"🎉 {display_name} has marked a challenge as completed! Great job!",
         reply_markup = None, 
         parse_mode = 'HTML')
+    
+async def toggle_reminder(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Toggle daily reminders for the goal."""
+    group = update.effective_chat
+    user = update.effective_user
+    user_id = user.id
+
+    # Insert or update the user in the database
+    await upsert_user_and_group(user, group)
+
+    # Check current reminder status
+    current_status = utils.get_group_reminder_status(group.id)
+
+    # Toggle the status
+    new_status = not current_status
+    utils.set_group_reminder_status(group.id, new_status)
+
+    status_text = "enabled" if new_status else "disabled"
+    await update.message.reply_text(f"Daily reminders have been {status_text} for this group.")
     
 async def bot_added_to_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Check if the bot was added (status changed to "member" or "administrator")

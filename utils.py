@@ -224,8 +224,13 @@ def get_challenge_accepted_participants(challenge_id):
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT cr.user_id
+            SELECT cr.*,
+                CASE 
+                    WHEN u.username IS NOT NULL THEN '@' || u.username
+                    ELSE u.display_name
+                END AS name
             FROM challenge_responses cr
+            JOIN users u ON cr.user_id = u.user_id
             WHERE cr.challenge_id = ? AND cr.status = 'issued'
         """, (challenge_id,))
 
@@ -258,6 +263,21 @@ def get_past_challenges(goal_id, limit = 7):
             ORDER BY created_at DESC
             LIMIT ? 
         """, (goal_id, limit))
+
+        result = cursor.fetchall()
+
+    return result
+
+def get_challenges_issued_yesterday():
+
+    with sqlite3.connect(consts.GOALS_DB_SQLITE) as conn:
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT *
+            FROM challenges 
+            WHERE DATE(created_at) >= DATE('now', '-1 day')
+        """)
 
         result = cursor.fetchall()
 

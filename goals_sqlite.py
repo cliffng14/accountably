@@ -18,6 +18,24 @@ cursor.execute("""
 """)
 
 cursor.execute("""
+    CREATE TABLE IF NOT EXISTS groups (
+        group_id INTEGER PRIMARY KEY,
+        group_name TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+""")
+
+cursor.execute("""
+    CREATE TABLE IF NOT EXISTS group_members (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        group_id INTEGER NOT NULL,
+        user_id INTEGER NOT NULL,
+        FOREIGN KEY (group_id) REFERENCES groups(group_id),
+        UNIQUE(group_id, user_id)
+    )
+""")
+
+cursor.execute("""
     CREATE TABLE IF NOT EXISTS goals (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     group_id INTEGER NOT NULL,
@@ -71,6 +89,18 @@ cursor.execute("""
 # Look at current table
 print('Users table contents:')
 cursor.execute("SELECT * FROM users")
+rows = cursor.fetchall()
+for row in rows:
+    print(row)
+
+print('Groups table contents:')
+cursor.execute("SELECT * FROM groups")
+rows = cursor.fetchall()
+for row in rows:
+    print(row)
+
+print('Group Members table contents:')
+cursor.execute("SELECT * FROM group_members")
 rows = cursor.fetchall()
 for row in rows:
     print(row)
