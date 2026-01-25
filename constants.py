@@ -1,4 +1,13 @@
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
 DEV_MODE = False
+
+TELEGRAM_BOT_TOKEN=os.getenv("TELEGRAM_BOT_TOKEN")
+GROQ_TOKEN=os.getenv("GROQ_TOKEN")
+ADMIN_TELEGRAM_USER_ID=int(os.getenv("ADMIN_TELEGRAM_USER_ID"))
 
 GOALS_DB_SQLITE = "./goals.db"
 

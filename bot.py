@@ -22,10 +22,6 @@ import utils
 from datetime import datetime, time
 import pytz
 
-from dotenv import load_dotenv
-
-load_dotenv()
-
 
 # Enable logging
 logging.basicConfig(
@@ -33,9 +29,6 @@ logging.basicConfig(
     level=logging.INFO,
 )
 logger = logging.getLogger(__name__)
-
-# Replace with your bot token from @BotFather
-BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
 async def upsert_user_and_group(user, group):
     """Insert or update user, group, and group membership information in the database."""
@@ -76,7 +69,6 @@ async def upsert_user_and_group(user, group):
 
 async def feedback_to_admin(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Forward user feedback to admin."""
-    ADMIN_USER_ID = os.getenv("ADMIN_TELEGRAM_USER_ID")  # Replace with your Telegram user ID
     
     # Get the feedback message (everything after /feedback)
     feedback = ' '.join(context.args)
@@ -95,7 +87,7 @@ async def feedback_to_admin(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     
     # Send feedback to admin
     await context.bot.send_message(
-        chat_id=ADMIN_USER_ID,
+        chat_id=consts.ADMIN_TELEGRAM_USER_ID,
         text=(
             f"📬 <b>New Feedback</b>\n\n"
             f"<b>From:</b> @{user_name} (ID: {user.id})\n"
@@ -482,7 +474,7 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Send to admin
     try:
         await context.bot.send_message(
-            chat_id=os.getenv("ADMIN_TELEGRAM_USER_ID"),
+            chat_id=consts.ADMIN_TELEGRAM_USER_ID,
             text=error_message,
             parse_mode='HTML'
         )
@@ -493,7 +485,7 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def main() -> None:
     """Start the bot."""
     # Create the Application
-    application = Application.builder().token(BOT_TOKEN).build()
+    application = Application.builder().token(consts.TELEGRAM_BOT_TOKEN).build()
 
     # Set timezone for scheduling
     sgt = pytz.timezone('Asia/Singapore')
