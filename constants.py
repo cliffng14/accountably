@@ -3,7 +3,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-DEV_MODE = True
+DEV_MODE = False
 
 TELEGRAM_BOT_TOKEN=os.getenv("TELEGRAM_BOT_TOKEN")
 GROQ_TOKEN=os.getenv("GROQ_TOKEN")
