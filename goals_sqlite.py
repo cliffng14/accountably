@@ -5,8 +5,6 @@ import constants as consts
 conn = sqlite3.connect(consts.GOALS_DB_SQLITE)
 cursor = conn.cursor()
 
-# # Create a 
-
 cursor.execute("""
     CREATE TABLE IF NOT EXISTS users (
         user_id INTEGER PRIMARY KEY,
@@ -85,6 +83,28 @@ cursor.execute("""
     );
 """)
 
+cursor.execute("""
+    CREATE TABLE IF NOT EXISTS prizefights (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        group_id INTEGER NOT NULL,
+        challenge TEXT NOT NULL,
+        prize TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+""")
+
+cursor.execute("""
+    CREATE TABLE IF NOT EXISTS prizefight_participants (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        prizefight_id INTEGER NOT NULL,
+        user_id INTEGER NOT NULL,
+        joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'verifying', 'completed', 'failed')),
+        FOREIGN KEY (prizefight_id) REFERENCES prizefights(id) ON DELETE CASCADE,
+        UNIQUE (prizefight_id, user_id)
+    );
+""")
 
 # Look at current table
 print('Users table contents:')
@@ -129,35 +149,11 @@ rows = cursor.fetchall()
 for row in rows:
     print(row)
 
-print('done')
+print('Prizefights table contents:')
+cursor.execute("SELECT * FROM prizefights")
+rows = cursor.fetchall()
+for row in rows:
+    print(row)
+
 conn.commit()
 conn.close()
-
-# # Insert a goal
-# cursor.execute("INSERT INTO goals (user_id, goal) VALUES (?, ?)", (12345, "Learn Python"))
-# conn.commit()
-
-# # Fetch goals for a user
-# cursor.execute("SELECT * FROM goals WHERE user_id = ?", (12345,))
-# rows = cursor.fetchall()
-# for row in rows:
-#     print(row)
-
-# # Update a goal
-# cursor.execute("UPDATE goals SET goal = ? WHERE id = ?", ("Learn SQLite", 1))
-# conn.commit()
-
-# # Delete a goal
-# cursor.execute("DELETE FROM goals WHERE id = ?", (1,))
-# conn.commit()
-
-# conn.close()
-
-# CREATE TABLE IF NOT EXISTS goals (
-#         id INTEGER PRIMARY KEY AUTOINCREMENT,
-#         group_id INTEGER NOT NULL,
-#         goal TEXT NOT NULL,
-#         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-#         frequency TEXT,
-#         last_challenged TIMESTAMP,
-#     )

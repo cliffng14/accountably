@@ -3,13 +3,26 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-DEV_MODE = False
+DEV_MODE = True
 
 TELEGRAM_BOT_TOKEN=os.getenv("TELEGRAM_BOT_TOKEN")
 GROQ_TOKEN=os.getenv("GROQ_TOKEN")
 ADMIN_TELEGRAM_USER_ID=int(os.getenv("ADMIN_TELEGRAM_USER_ID"))
 
 GOALS_DB_SQLITE = "./goals.db"
+
+# Challenge generation settings
+CHALLENGE_MAX_TOKENS = 100
+CHALLENGE_DEADLINE_DAYS = 1
+
+# Scheduled job times (SGT timezone)
+CHALLENGE_GENERATION_HOUR = 22
+CHALLENGE_GENERATION_MINUTE = 45
+CHALLENGE_DEADLINE_HOUR = 23
+CHALLENGE_DEADLINE_MINUTE = 59
+
+# Dev mode intervals (seconds)
+DEV_CHALLENGE_INTERVAL = 3600
 
 INTRODUCTION_TEXT = """
 Hello everyone! 👋

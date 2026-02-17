@@ -3,7 +3,7 @@ import html
 import traceback
 import logging
 from telegram.error import Forbidden, BadRequest, TimedOut, NetworkError
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ForceReply
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -17,7 +17,8 @@ import sqlite3
 import constants as consts
 import challenge
 import validate_completion
-# import remind
+import prizefight
+import clear_challenges
 import utils
 from datetime import datetime, time
 import pytz
@@ -29,43 +30,6 @@ logging.basicConfig(
     level=logging.INFO,
 )
 logger = logging.getLogger(__name__)
-
-async def upsert_user_and_group(user, group):
-    """Insert or update user, group, and group membership information in the database."""
-    with sqlite3.connect(consts.GOALS_DB_SQLITE) as conn:
-        cursor = conn.cursor()
-
-        # Insert or update user
-        cursor.execute(
-            """
-            INSERT INTO users (user_id, username, display_name)
-            VALUES (?, ?, ?)
-            ON CONFLICT(user_id) DO NOTHING
-            """,
-            (user.id, user.username, user.first_name)
-        )
-
-        # Insert or update group
-        cursor.execute(
-            """
-            INSERT INTO groups (group_id, group_name)
-            VALUES (?, ?)
-            ON CONFLICT(group_id) DO NOTHING
-            """,
-            (group.id, group.title)
-        )
-
-        # Insert or update group membership
-        cursor.execute(
-            """
-            INSERT INTO group_members (group_id, user_id)
-            VALUES (?, ?)
-            ON CONFLICT(group_id, user_id) DO NOTHING
-            """,
-            (group.id, user.id)
-        )
-
-        conn.commit()
 
 async def feedback_to_admin(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Forward user feedback to admin."""
@@ -119,7 +83,7 @@ async def goals_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     user_id = user.id
 
     # Insert or update the user in the database
-    await upsert_user_and_group(user, group)
+    await utils.upsert_user_and_group(user, group)
 
     # Fetch active goals the user has already joined
     joined_goals = utils.get_active_participanting_goals(group.id, user_id)
@@ -158,7 +122,7 @@ async def join_goals_from_goals_command(update: Update, context: ContextTypes.DE
     user_id = user.id
     group_id = query.message.chat.id
     goal_id = query.data.split(":")[1]  # Extract the goal ID (e.g., "42")
-    display_name = f"@{user.username}" if user.username else user.first_name
+    display_name = utils.get_display_name_from_telegram_user(user)
 
     # Insert the user into the database
     try:
@@ -214,10 +178,10 @@ async def join_goals_from_goals_command(update: Update, context: ContextTypes.DE
 async def add_goal_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     group = update.effective_chat
     user = update.effective_user
-    display_name = f"@{user.username}" if user.username else user.first_name
+    display_name = utils.get_display_name_from_telegram_user(user)
 
     # Insert or update the user in the database
-    await upsert_user_and_group(user, group)
+    await utils.upsert_user_and_group(user, group)
 
     full_text = update.message.text
 
@@ -272,7 +236,7 @@ async def join_goal(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = user.id
     group_id = query.message.chat.id
     goal_id = query.data.split(":")[1]
-    display_name = f"@{user.username}" if user.username else user.first_name
+    display_name = utils.get_display_name_from_telegram_user(user)
 
     # Adding user to goal in chat_data
     try:
@@ -315,7 +279,7 @@ async def join_goal_from_creation(update: Update, context: ContextTypes.DEFAULT_
     group = query.message.chat
     new_goal = context.chat_data.get(f"goal_id_{goal_id}")
 
-    await upsert_user_and_group(user, group)
+    await utils.upsert_user_and_group(user, group)
 
     if not new_goal:
         await query.answer("Something went wrong.", show_alert=True)
@@ -348,10 +312,10 @@ async def complete_challenge_command(update: Update, context: ContextTypes.DEFAU
     group = update.effective_chat
     user = update.effective_user
     user_id = user.id
-    display_name = f"@{user.username}" if user.username else user.first_name
+    display_name = utils.get_display_name_from_telegram_user(user)
 
     # Insert or update the user in the database
-    await upsert_user_and_group(user, group)
+    await utils.upsert_user_and_group(user, group)
 
     # Fetch active challenges the user has already joined
     pending_challenges = utils.get_pending_challenges(group.id, user_id)
@@ -379,7 +343,7 @@ async def mark_challenge_complete_handler(update: Update, context: ContextTypes.
     query = update.callback_query
     user = query.from_user
     user_id = user.id
-    display_name = f"@{user.username}" if user.username else user.first_name
+    display_name = utils.get_display_name_from_telegram_user(user)
 
     challenge_response_id = query.data.split(":")[1]  # Extract the challenge response ID
 
@@ -396,13 +360,16 @@ async def mark_challenge_complete_handler(update: Update, context: ContextTypes.
         await query.answer("An error occurred while marking the challenge as completed. Please try again.")
         logger.error(f"Database error: {e}")
         return
+    
+    challenge = utils.get_challenge_from_challenge_response_id(challenge_response_id)
 
-    await query.answer(f"🎉 {display_name}, your challenge has been marked as completed! Great job!")
     await query.edit_message_text(
-        text = f"🎉 {display_name} has marked a challenge as completed! Great job!",
+        text = f"🎉 {display_name} has completed challenge '{challenge['description']}'. Remember to send your proof of completion to here for validation!",
         reply_markup = None, 
         parse_mode = 'HTML')
     
+    await validate_completion.validate(update, context, challenge_response_id, user_id)
+
 async def toggle_reminder(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Toggle daily reminders for the goal."""
     group = update.effective_chat
@@ -410,7 +377,7 @@ async def toggle_reminder(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     user_id = user.id
 
     # Insert or update the user in the database
-    await upsert_user_and_group(user, group)
+    await utils.upsert_user_and_group(user, group)
 
     # Check current reminder status
     current_status = utils.get_group_reminder_status(group.id)
@@ -465,12 +432,6 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Bot was blocked or kicked
             error_message += "Bot was removed from groupchat"
 
-    # Add traceback - escape HTML characters
-    # tb = ''.join(traceback.format_exception(type(error), error, error.__traceback__))
-    # if len(tb) > 3000:
-    #     tb = tb[:3000] + "..."
-    # error_message += f"\n<pre>{html.escape(tb)}</pre>"
-
     # Send to admin
     try:
         await context.bot.send_message(
@@ -491,18 +452,16 @@ def main() -> None:
     sgt = pytz.timezone('Asia/Singapore')
 
     if consts.DEV_MODE:
-        application.job_queue.run_repeating(challenge.schedule_challenges, interval=3600, first=10)
-        application.job_queue.run_repeating(validate_completion.validate_completion, interval=3600, first=30)
+        application.job_queue.run_repeating(challenge.schedule_challenges, interval=consts.DEV_CHALLENGE_INTERVAL, first=10)
+        application.job_queue.run_repeating(clear_challenges.fail_prizefights, interval=consts.DEV_CHALLENGE_INTERVAL, first=30)
 
     else:
         # Generate and issue challenges for the next day at 9:30 PM SGT daily
-        application.job_queue.run_daily(challenge.schedule_challenges, time=time(hour=22, minute=45, tzinfo=sgt))
+        application.job_queue.run_daily(challenge.schedule_challenges, time=time(hour=consts.CHALLENGE_GENERATION_HOUR, minute=consts.CHALLENGE_GENERATION_MINUTE, tzinfo=sgt))
 
-        # Validate completed challenges at 10:00 PM SGT daily
-        application.job_queue.run_daily(validate_completion.validate_completion, time=time(hour=23, minute=59, tzinfo=sgt))
-
-        # Send reminder message in the morning
-        # application.job_queue.run_daily(remind.)
+        # Clear expiring challenges at 11:59 PM SGT daily
+        application.job_queue.run_daily(clear_challenges.fail_expiring_challenges, time=time(hour=consts.CHALLENGE_DEADLINE_HOUR, minute=consts.CHALLENGE_DEADLINE_MINUTE, tzinfo=sgt))
+        application.job_queue.run_daily(clear_challenges.fail_prizefights, time=time(hour=consts.CHALLENGE_DEADLINE_HOUR, minute=consts.CHALLENGE_DEADLINE_MINUTE, tzinfo=sgt))
 
 
     # Add command handlers
@@ -511,9 +470,9 @@ def main() -> None:
     application.add_handler(CommandHandler("addgoal", add_goal_command))
     application.add_handler(CommandHandler("feedback", feedback_to_admin))
     application.add_handler(CommandHandler("deletegoal", delete_goal_command))
+    application.add_handler(CommandHandler("prizefight", prizefight.prize_fight))
     application.add_handler(CommandHandler("complete", complete_challenge_command))
-
-    # application.add_handler(CommandHandler("buttons", buttons))
+    application.add_handler(CommandHandler("complete_prizefight", prizefight.complete_prize_fight_handler))
 
     # Add callback handler for inline buttons
     application.add_handler(CallbackQueryHandler(join_goal_from_creation, pattern=r"^join_goal_from_creation:"))
@@ -522,7 +481,11 @@ def main() -> None:
     application.add_handler(CallbackQueryHandler(challenge.handle_suggest_challenge, pattern=r"^suggest_challenge_"))
     application.add_handler(CallbackQueryHandler(mark_challenge_complete_handler, pattern=r"^mark_challenge_complete:"))
     application.add_handler(CallbackQueryHandler(validate_completion.handle_validation_response, pattern=r"^validate_"))
-    application.add_handler(CallbackQueryHandler(validate_completion.handle_validation_response, pattern=r"^reject_"))
+    application.add_handler(CallbackQueryHandler(prizefight.handle_prize_fight_response, pattern=r"^accept_prizefight:"))
+    application.add_handler(CallbackQueryHandler(prizefight.handle_prize_fight_response, pattern=r"^suggest_prizefight"))
+    application.add_handler(CallbackQueryHandler(prizefight.complete_selected_prize_fight, pattern=r"^complete_prizefight:"))
+    application.add_handler(CallbackQueryHandler(prizefight.handle_prize_fight_validation, pattern=r"^prizefight_validate:"))
+    application.add_handler(MessageHandler(filters.TEXT & filters.REPLY & ~filters.COMMAND, prizefight.prize_fight))
     application.add_handler(MessageHandler(filters.TEXT & filters.REPLY & ~filters.COMMAND, challenge.handle_suggestion_reply))
     application.add_handler(ChatMemberHandler(bot_added_to_group, ChatMemberHandler.MY_CHAT_MEMBER))
     application.add_handler(MessageHandler(filters.ChatType.PRIVATE, private_chat_reply))

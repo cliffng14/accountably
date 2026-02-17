@@ -1,5 +1,82 @@
 import sqlite3
+import logging
 import constants as consts
+
+logger = logging.getLogger(__name__)
+
+async def upsert_user_and_group(user, group):
+    """Insert or update user, group, and group membership information in the database."""
+    with sqlite3.connect(consts.GOALS_DB_SQLITE) as conn:
+        cursor = conn.cursor()
+
+        # Insert or update user
+        cursor.execute(
+            """
+            INSERT INTO users (user_id, username, display_name)
+            VALUES (?, ?, ?)
+            ON CONFLICT(user_id) DO NOTHING
+            """,
+            (user.id, user.username, user.first_name)
+        )
+
+        # Insert or update group
+        cursor.execute(
+            """
+            INSERT INTO groups (group_id, group_name)
+            VALUES (?, ?)
+            ON CONFLICT(group_id) DO NOTHING
+            """,
+            (group.id, group.title)
+        )
+
+        # Insert or update group membership
+        cursor.execute(
+            """
+            INSERT INTO group_members (group_id, user_id)
+            VALUES (?, ?)
+            ON CONFLICT(group_id, user_id) DO NOTHING
+            """,
+            (group.id, user.id)
+        )
+
+        conn.commit()
+
+def get_display_name_from_telegram_user(user):
+    """
+    Generate display name from Telegram user object.
+
+    Args:
+        user: Telegram user object with username and first_name attributes
+
+    Returns:
+        str: Display name in format "@username" or first_name
+    """
+    return f"@{user.username}" if user.username else user.first_name
+
+def format_names_list(names):
+    """
+    Format a list of names into a grammatically correct string.
+
+    Args:
+        names: List of name strings
+
+    Returns:
+        str: Formatted string like "Alice", "Alice and Bob", or "Alice, Bob, and Charlie"
+
+    Examples:
+        [] -> ""
+        ["Alice"] -> "Alice"
+        ["Alice", "Bob"] -> "Alice and Bob"
+        ["Alice", "Bob", "Charlie"] -> "Alice, Bob, and Charlie"
+    """
+    if not names:
+        return ""
+    elif len(names) == 1:
+        return names[0]
+    elif len(names) == 2:
+        return f"{names[0]} and {names[1]}"
+    else:
+        return ", ".join(names[:-1]) + f", and {names[-1]}"
 
 def get_active_participanting_goals(group_id, user_id):
 
@@ -78,7 +155,7 @@ def get_challenge_from_challenge_response_id(challenge_response_id):
             WHERE cr.id = ?
         """, (challenge_response_id,))
 
-        completed_challenges = cursor.fetchall()
+        completed_challenges = cursor.fetchone()
 
         return completed_challenges
 
@@ -120,7 +197,25 @@ def get_group_id_by_goal_id(goal_id):
             return goal["group_id"]
         else:
             return None
-        
+
+def get_group_id_by_prize_fight_id(prize_fight_id):
+    """Get group_id from a prizefight ID."""
+    with sqlite3.connect(consts.GOALS_DB_SQLITE) as conn:
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT group_id
+            FROM prizefights
+            WHERE id = ?
+        """, (prize_fight_id,))
+
+        prizefight = cursor.fetchone()
+
+        if prizefight:
+            return prizefight["group_id"]
+        else:
+            return None
+
 def get_user_display_name_by_challenge_response_id(challenge_response_id):
     with sqlite3.connect(consts.GOALS_DB_SQLITE) as conn:
         conn.row_factory = sqlite3.Row
@@ -219,6 +314,40 @@ def get_display_name_from_user_id(user_id):
         else:
             return None
         
+def get_user_id_from_display_name(display_name):
+    with sqlite3.connect(consts.GOALS_DB_SQLITE) as conn:
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT u.user_id
+            FROM users u
+            WHERE (u.username = ? OR u.display_name = ?)
+        """, (display_name.lstrip('@'), display_name))
+
+        result = cursor.fetchone()
+
+        if result:
+            return result
+        else:
+            return None
+        
+def get_username_from_user_id(user_id):
+    with sqlite3.connect(consts.GOALS_DB_SQLITE) as conn:
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT *
+            FROM users u
+            WHERE u.user_id = ?
+        """, (user_id,))
+
+        result = cursor.fetchone()
+
+        if result:
+            return result
+        else:
+            return None
+        
 def get_challenge_accepted_participants(challenge_id):
     with sqlite3.connect(consts.GOALS_DB_SQLITE) as conn:
         conn.row_factory = sqlite3.Row
@@ -282,3 +411,130 @@ def get_challenges_issued_yesterday():
         result = cursor.fetchall()
 
     return result
+
+def insert_into_prizefights(challenge, prize, group_id):
+
+    with sqlite3.connect(consts.GOALS_DB_SQLITE) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO prizefights (challenge, prize, group_id)
+            VALUES (?, ?, ?)
+        """, (challenge, prize, group_id))
+        conn.commit()
+    return cursor.lastrowid
+
+def insert_into_prizefight_participants(prizefight_id, user_id):
+
+    with sqlite3.connect(consts.GOALS_DB_SQLITE) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO prizefight_participants (prizefight_id, user_id)
+            VALUES (?, ?)
+        """, (prizefight_id, user_id))
+        conn.commit()
+
+def get_prize_fight_for_user_id(user_id, group_id):
+    with sqlite3.connect(consts.GOALS_DB_SQLITE) as conn:
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute(
+                """
+                SELECT pf.id, pf.challenge, pf.prize
+                FROM prizefights pf
+                JOIN prizefight_participants pfp ON pf.id = pfp.prizefight_id
+                WHERE pfp.user_id = ? AND pf.group_id = ? AND pfp.status = 'pending'
+                """,
+                (user_id, group_id)
+            )
+        return cursor.fetchall()
+
+def edit_prize_fight_status(prize_fight_id, user_id, status):
+    with sqlite3.connect(consts.GOALS_DB_SQLITE) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE prizefight_participants
+            SET status = ?
+            WHERE prizefight_id = ? AND user_id = ?
+        """, (status, prize_fight_id, user_id))
+        conn.commit()
+
+def get_prize_fight_details(prize_fight_id):
+    with sqlite3.connect(consts.GOALS_DB_SQLITE) as conn:
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT *
+            FROM prizefights
+            WHERE id = ?
+        """, (prize_fight_id,))
+
+        prize_fight = cursor.fetchone()
+
+        return prize_fight
+    
+def get_prize_fight_participants(prize_fight_id, exclude_user_id=None):
+    with sqlite3.connect(consts.GOALS_DB_SQLITE) as conn:
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        if exclude_user_id:
+            cursor.execute("""
+                SELECT u.user_id, u.username, u.display_name
+                FROM prizefight_participants pfp
+                JOIN users u ON pfp.user_id = u.user_id
+                WHERE pfp.prizefight_id = ? AND pfp.user_id != ?
+            """, (prize_fight_id, exclude_user_id))
+        else:
+            cursor.execute("""
+                SELECT u.user_id, u.username, u.display_name
+                FROM prizefight_participants pfp
+                JOIN users u ON pfp.user_id = u.user_id
+                WHERE pfp.prizefight_id = ?
+            """, (prize_fight_id,))
+        participants = cursor.fetchall()
+        return participants
+    
+def get_expiring_challenges():
+    """
+    Get all challenges that are still pending with full challenge details
+    """
+    try:
+        with sqlite3.connect(consts.GOALS_DB_SQLITE) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+
+            cursor.execute(
+                """
+                SELECT cr.id, cr.challenge_id, cr.user_id, c.description, c.goal_id
+                FROM challenge_responses cr
+                JOIN challenges c ON cr.challenge_id = c.id
+                WHERE cr.status = 'pending'
+                """
+            )
+            return cursor.fetchall()
+
+    except sqlite3.Error as e:
+        logger.error(f"Database error in get_expiring_challenges: {e}")
+        return []
+    
+def get_pending_prizefights():
+    """
+    Get all prize fights that are still pending with full details
+    """
+    try:
+        with sqlite3.connect(consts.GOALS_DB_SQLITE) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+
+            cursor.execute(
+                """
+                SELECT pfp.id, pfp.prizefight_id, pfp.user_id, pf.challenge, pf.prize, pf.group_id
+                FROM prizefight_participants pfp
+                JOIN prizefights pf ON pfp.prizefight_id = pf.id
+                WHERE pfp.status = 'pending'
+                """
+            )
+            return cursor.fetchall()
+
+    except sqlite3.Error as e:
+        logger.error(f"Database error in get_pending_prizefights: {e}")
+        return []

@@ -1,9 +1,11 @@
 import os
-import ast
 import json
+import logging
 import sqlite3
 from groq import Groq
 from datetime import datetime, timedelta
+
+logger = logging.getLogger(__name__)
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -98,7 +100,7 @@ def generate_challenge(goal, start_date, past_challenges):
             {"role": "system", "content": ptemplates.CHALLENGE_PROMPT_TEMPLATE.format(goal = goal, num_day = num_days.days, past_challenges = [challenge['description'] for challenge in past_challenges])},
             {"role": "user", "content": f"Generate a challenge for: {goal}."}
         ],
-        max_tokens = 100,
+        max_tokens = consts.CHALLENGE_MAX_TOKENS,
         response_format = {'type': 'json_object'}
     )
 
@@ -131,7 +133,7 @@ async def schedule_challenges(context: ContextTypes.DEFAULT_TYPE):
         with sqlite3.connect(consts.GOALS_DB_SQLITE) as conn:
             cursor = conn.cursor()
             cursor.execute(
-                "INSERT INTO challenges (goal_id, description, due_date) VALUES (?, ?, ?)", (goal['id'], challenge_message, (datetime.now() + timedelta(days=1)).isoformat())
+                "INSERT INTO challenges (goal_id, description, due_date) VALUES (?, ?, ?)", (goal['id'], challenge_message, (datetime.now() + timedelta(days=consts.CHALLENGE_DEADLINE_DAYS)).isoformat())
             )
 
             challenge_id = cursor.lastrowid
@@ -145,14 +147,7 @@ async def schedule_challenges(context: ContextTypes.DEFAULT_TYPE):
             conn.commit()
 
         # Format user list to string for message
-        if len(users) == 0:
-            username_string = ""
-        elif len(users) == 1:
-            username_string = users[0]['name']
-        elif len(users) == 2:
-            username_string = f"{users[0]['name']} and {users[1]['name']}"
-        else:
-            username_string = ", ".join(users[:-1]['name']) + f", and {users[-1]['name']}"
+        username_string = utils.format_names_list([u['name'] for u in users])
         
         # Create message
         message = f"{username_string}\n\n<b>🎯 Challenge for tomorrow:</b>\n <tg-spoiler>{challenge_message}</tg-spoiler>\n\nAll the best and stay locked in!"
@@ -203,14 +198,7 @@ async def accept_challenge(update, context):
         unaccpeted_user_list = [utils.get_display_name_from_user_id(u['user_id']) for u in unaccepted_list]
 
         # Format user list to string for message
-        if len(unaccpeted_user_list) == 0:
-            username_string = ""
-        elif len(unaccpeted_user_list) == 1:
-            username_string = unaccpeted_user_list[0]['name']
-        elif len(unaccpeted_user_list) == 2:
-            username_string = f"{unaccpeted_user_list[0]['name']} and {unaccpeted_user_list[1]['name']}"
-        else:
-            username_string = ", ".join(u['name'] for u in unaccpeted_user_list[:-1]) + f", and {unaccpeted_user_list[-1]['name']}"
+        username_string = utils.format_names_list([u['name'] for u in unaccpeted_user_list])
 
         # Add challenge response to the database
         with sqlite3.connect(consts.GOALS_DB_SQLITE) as conn:
@@ -242,7 +230,7 @@ async def accept_challenge(update, context):
         await query.message.reply_text(f"{username_string}\n\n{display_name['name']} has accepted the challenge, don't be left behind!")
 
     except Exception as e:
-        print(f"Error accepting challenge: {e}")
+        logger.error(f"Error accepting challenge: {e}")
         await query.answer("❌ There was an error accepting the challenge. Please try again later.")
 
 async def handle_suggest_challenge(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -297,7 +285,7 @@ async def handle_suggestion_reply(update: Update, context: ContextTypes.DEFAULT_
     with sqlite3.connect(consts.GOALS_DB_SQLITE) as conn:
         cursor = conn.cursor()
         cursor.execute(
-            "INSERT INTO challenges (goal_id, description, due_date) VALUES (?, ?, ?)", (goal_id, suggestion, (datetime.now() + timedelta(days=1)).isoformat())
+            "INSERT INTO challenges (goal_id, description, due_date) VALUES (?, ?, ?)", (goal_id, suggestion, (datetime.now() + timedelta(days=consts.CHALLENGE_DEADLINE_DAYS)).isoformat())
         )
 
         cursor.execute(
@@ -320,7 +308,7 @@ async def handle_suggestion_reply(update: Update, context: ContextTypes.DEFAULT_
 
             if cursor.rowcount == 0:
                 # No matching row found
-                print(f"{i} not in challenge {challenge_id}")
+                logger.warning(f"User {i} not in challenge {challenge_id}")
 
         conn.commit()
 
@@ -332,21 +320,14 @@ async def handle_suggestion_reply(update: Update, context: ContextTypes.DEFAULT_
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
-    display_name = f"@{update.effective_user.username}" or update.effective_user.first_name
+    display_name = utils.get_display_name_from_telegram_user(update.effective_user)
 
     other_participants = utils.get_members_in_goal(goal_id)
     other_participants_name = [participants['name'] for participants in other_participants]
 
     other_participants_name.remove(display_name)
 
-    if len(other_participants_name) == 0:
-        other_participants_name_str = ''
-    elif len(other_participants_name) == 1:
-        other_participants_name_str = other_participants_name[0]
-    elif len(other_participants_name) == 2:
-        other_participants_name_str = f"{other_participants_name[0]} and {other_participants_name[1]}"
-    else:
-        other_participants_name_str = ", ".join(other_participants_name[:-1]) + f", and {other_participants_name[-1]}"
+    other_participants_name_str = utils.format_names_list(other_participants_name)
     
 
     await update.message.reply_text(
