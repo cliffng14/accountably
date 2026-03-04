@@ -26,6 +26,9 @@ async def fail_expiring_challenges(context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
+    challenge_response_ids = [challenge["id"] for challenge in expiring_challenges]
+    utils.mark_challenge_responses_as_failed(challenge_response_ids)
+
     for challenge in expiring_challenges:
         challenge_response_id = challenge["id"]
         challenge_id = challenge["challenge_id"]
@@ -39,9 +42,9 @@ async def fail_expiring_challenges(context: ContextTypes.DEFAULT_TYPE):
 
         await context.bot.send_message(
             chat_id=group_id,
-            text=f"{display_name} failed to complete challenge {description} on time. Try again tomorrow! 💪"
+            text=f"{display_name['name']} failed to complete challenge {description} on time. Try again tomorrow! 💪"
         )
-    
+
     await context.bot.send_message(
         chat_id=os.getenv("ADMIN_TELEGRAM_USER_ID"),
         text=f"{len(expiring_challenges)} challenges were marked as failed today."

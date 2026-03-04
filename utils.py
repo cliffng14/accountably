@@ -258,6 +258,20 @@ async def mark_challenge_as_rejected(challenge_response_id):
         """, (challenge_response_id,))
         conn.commit()
 
+def mark_challenge_responses_as_failed(challenge_response_ids):
+    """Mark a list of challenge responses as failed."""
+    if not challenge_response_ids:
+        return
+    with sqlite3.connect(consts.GOALS_DB_SQLITE) as conn:
+        cursor = conn.cursor()
+        placeholders = ",".join("?" * len(challenge_response_ids))
+        cursor.execute(f"""
+            UPDATE challenge_responses
+            SET status = 'failed'
+            WHERE id IN ({placeholders})
+        """, challenge_response_ids)
+        conn.commit()
+
 def goal_id_from_challenge_response_id_and_user_id(challenge_response_id, user_id):
     with sqlite3.connect(consts.GOALS_DB_SQLITE) as conn:
         conn.row_factory = sqlite3.Row

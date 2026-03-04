@@ -453,6 +453,7 @@ def main() -> None:
 
     if consts.DEV_MODE:
         application.job_queue.run_repeating(challenge.schedule_challenges, interval=consts.DEV_CHALLENGE_INTERVAL, first=10)
+        application.job_queue.run_repeating(clear_challenges.fail_expiring_challenges, interval=consts.DEV_CHALLENGE_INTERVAL, first=10)
         application.job_queue.run_repeating(clear_challenges.fail_prizefights, interval=consts.DEV_CHALLENGE_INTERVAL, first=30)
 
     else:
